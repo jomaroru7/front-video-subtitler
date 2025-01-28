@@ -23,11 +23,10 @@ const VideoUploadForm: React.FC = () => {
       const requestBody = {
         body: {
           video: file.name,
-          output_folder: "./downloads/", 
         },
       };
 
-      const res = await axios.post("api", requestBody, {
+      const res = await axios.post("http://127.0.0.1:4000/", requestBody, {
         headers: {
           "Content-Type": "application/json",
         },
