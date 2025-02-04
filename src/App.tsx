@@ -7,7 +7,7 @@ function App() {
 
   return (
     <>
-      <div className='bg-gray-800 h-screen w-screen flex flex-col justify-center items-center'>
+      <div className='bg-gray-800 min-h-screen w-screen flex flex-col justify-center items-center'>
         <TitleBanner/>
         <VideoUploadForm/>
       </div>  

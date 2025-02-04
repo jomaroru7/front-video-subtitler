@@ -1,14 +1,18 @@
 import React, { useState } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import axios from "axios";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
 
 interface FormData {
-  video: FileList; 
+  video: FileList;
 }
 
 const VideoUploadForm: React.FC = () => {
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>();
   const [response, setResponse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const ffmpeg = new FFmpeg();
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     const file = data.video[0];
@@ -17,12 +21,16 @@ const VideoUploadForm: React.FC = () => {
       return;
     }
 
+    setLoading(true);
+
     try {
-      const fileBase64 = await convertFileToBase64(file);
+      const fileBase64 = await extractAudioToBase64(file);
 
       const requestBody = {
         body: {
-          video: file.name,
+          audio: fileBase64,
+          "sample_rate": "sr", 
+          "output_folder": "./tmp/"
         },
       };
 
@@ -37,17 +45,69 @@ const VideoUploadForm: React.FC = () => {
     } catch (error: any) {
       console.error("Error uploading video:", error);
       setResponse(error.response?.data || { error: "An error occurred" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const convertFileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
+  const extractAudioToBase64 = async (file: File): Promise<string> => {
+    console.log("Archivo recibido:", file.name);
+  
+    if (!ffmpeg.loaded) {
+      console.log("Cargando FFmpeg");
+      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
+  
+      try {
+        await ffmpeg.load({
+          coreURL: `${baseURL}/ffmpeg-core.js`,
+          wasmURL: `${baseURL}/ffmpeg-core.wasm`,
+        });
+  
+        console.log("FFmpeg cargado correctamente");
+      } catch (error) {
+        console.error("Error al cargar FFmpeg:", error);
+        throw new Error("Error al cargar FFmpeg");
+      }
+    }
+  
+    try {
+      console.log("Convirtiendo archivo a Uint8Array...");
+      const fileData = new Uint8Array(await file.arrayBuffer());
+      console.log("Archivo convertido correctamente");
+  
+      console.log("Escribiendo archivo en FFmpeg...");
+      await ffmpeg.writeFile("input.mp4", fileData);
+      console.log("Archivo escrito correctamente");
+  
+      console.log("Extrayendo audio...");
+      await ffmpeg.exec(["-i", "input.mp4", "-q:a", "0", "-map", "a", "output.mp3"]);
+      console.log("Audio extraído correctamente");
+  
+      console.log("Leyendo el archivo de audio...");
+      const audioData = await ffmpeg.readFile("output.mp3");
+  
+      console.log("Creando Blob de audio...");
+      const audioBlob = new Blob([audioData], { type: "audio/mp3" });
+  
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          let base64String = reader.result as string;
+  
+          base64String = base64String.split(",")[1];
+  
+          console.log("Conversión a Base64 completada");
+          resolve(base64String);
+        };
+      });
+    } catch (error) {
+      console.error("Error procesando el archivo:", error);
+      throw new Error("Error al procesar el video");
+    }
   };
+  
+  
 
   return (
     <div>
@@ -72,8 +132,9 @@ const VideoUploadForm: React.FC = () => {
           <button
             type="submit"
             className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            disabled={loading}
           >
-            Upload Video
+            {loading ? "Processing..." : "Upload Video"}
           </button>
         </form>
 

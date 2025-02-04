@@ -6,8 +6,18 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss()
+    tailwindcss(),
   ],
+  optimizeDeps: {
+    exclude: ["@ffmpeg/ffmpeg", "@ffmpeg/util"],
+  },
+  build: {
+    rollupOptions: {
+      external: [
+        '@ffmpeg/core',
+      ],
+    },
+  },
   server: {
     proxy: {
       '/api': {
